@@ -6,7 +6,7 @@ import numpy as np
 
 
 class EquilibriumError(Exception):
-    """ No equilibrium avaliable. """
+    """ No equilibrium available. """
 
 
 def norm(dict_: Dict[Any, float]):

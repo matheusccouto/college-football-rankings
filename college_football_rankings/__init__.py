@@ -6,7 +6,7 @@ Powered by collegefootballdata.com
 from typing import Any, Dict, Sequence, Tuple, Optional, List, Callable
 
 import college_football_api as cf_api
-from . import iterative
+from college_football_rankings import iterative
 
 
 class NoGameError(Exception):
@@ -147,4 +147,4 @@ def evaluate(func: Callable, year: int, week: int, *args, **kwargs) -> List[str]
 
 
 if __name__ == "__main__":
-    print(evaluate(func=iterative.power, year=2018, week=1000, score=False))
+    print(evaluate(func=iterative.power, year=2020, week=1000, score=False))
