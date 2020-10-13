@@ -69,3 +69,30 @@ class CollegeFootballAPI:
         url = f"{self._path}teams/fbs?year={year}"  # Always include year.
         req = requests.get(url, params={"accept": "application/json"}, verify=False)
         return req.json()
+
+    def rankings(
+        self, year: int, week: Optional[int] = None, season_type: Optional[str] = None,
+    ) -> Sequence[Dict[str, Any]]:
+        """
+        Get games data.
+
+        Args:
+            year: Season year.
+            week: Week number. None to get all.
+            season_type: Season type. Accepts 'regular', 'postseason' or 'both'.
+                None to get all.
+
+        Returns:
+            Sequence of dictionaries with requested games data.
+        """
+        kwargs: Dict[str, Any] = {
+            "week": week,
+            "seasonType": season_type,
+        }
+        url = f"{self._path}rankings?year={year}"  # Always include year.
+        for key, val in kwargs.items():
+            if val is None:
+                continue  # Ignore if None.
+            url += f"&{key}={val}"
+        req = requests.get(url, params={"accept": "application/json"}, verify=False)
+        return req.json()

@@ -108,4 +108,4 @@ def power(
             teams_power = new_teams_power.copy()
 
     # When running out of tries.
-    raise EquilibriumError("Not enough games to find Equilibrium")
+    raise EquilibriumError("Not enough games to find equilibrium")

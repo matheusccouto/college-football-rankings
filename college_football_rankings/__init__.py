@@ -24,7 +24,7 @@ def get_all_games_data(year: int) -> Sequence[Dict[str, Any]]:
         Sequence of dictionaries with each game data.
     """
     api = cf_api.CollegeFootballAPI()
-    return api.games(year=year)
+    return api.games(year=year, season_type="regular")
 
 
 def get_all_teams_data(year: int) -> Sequence[Dict[str, Any]]:
@@ -106,37 +106,61 @@ def create_teams_records_dict(
     return teams_dict
 
 
+def prepare_data(
+    games: Sequence[Dict[str, Any]], week: int
+) -> Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]]:
+    """
+    Transform game records into team's records.
+
+    Args:
+        games: Games data.
+        week: Max week to consider.
+
+    Returns:
+        Each team's ecord.
+    """
+    teams_records = create_teams_records_dict(games)
+    filter_week(teams_records=teams_records, week=week)
+    return teams_records
+
+
 def filter_week(
     teams_records: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]], week: int,
 ):
-    """ Erase data from every week after the one specified. """
+    """
+    Erase data from every week after the one specified.
+
+    Args:
+        teams_records: Each team's records.
+        week: Max week to keep.
+
+    Returns:
+        Records with weeks above the limit erased.
+    """
     for records in teams_records.values():
         for game_week in records.keys():
             if game_week > week:
                 records[game_week] = (None, None)
 
 
-def evaluate(func: Callable, year: int, week: int, *args, **kwargs) -> List[str]:
+def evaluate(
+    teams_records: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]],
+    func: Callable,
+    *args,
+    **kwargs,
+) -> List[str]:
     """
     Evaluate rankings.
 
     Args:
+        teams_records: Teams records.
         func: Function to evaluate teams power.
-        year: Season year.
-        week: Week number.
         args: Positional argument from func.
         kwargs: Keyword arguments from func.
 
     Returns:
         Teams rankings.
     """
-    # Get data from all games from the selected year.
-    games = get_all_games_data(year)
-    # Transform games data in a dictionary with each team records.
-    teams_records = create_teams_records_dict(games)
-    # Filter up to the selected week
-    filter_week(teams_records=teams_records, week=week)
-
     # Run power function;
     teams_power = func(teams_records, *args, **kwargs)
 
@@ -146,5 +170,21 @@ def evaluate(func: Callable, year: int, week: int, *args, **kwargs) -> List[str]
     return [team for _, team in sorted(zip(power, teams), reverse=True)]
 
 
-if __name__ == "__main__":
-    print(evaluate(func=iterative.power, year=2020, week=1000, score=False))
+def create_records_dict(
+    teams_records: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]]
+) -> Dict[str, str]:
+    """
+    Create dictionary with each team's aggregate records.
+
+    Args:
+        teams_records: Each team's records.
+
+    Returns:
+        Dictionary with team as key and aggregated records as vale.
+    """
+    records_dict: Dict[str, str] = {}
+    for name, records in teams_records.items():
+        n_wins = sum([1 for game in records.values() if game[-1] and game[-1] > 0])
+        n_loses = sum([1 for game in records.values() if game[-1] and game[-1] < 0])
+        records_dict.update({name: f"{n_wins}-{n_loses}"})
+    return records_dict
