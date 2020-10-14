@@ -54,17 +54,17 @@ def get_all_teams_names(year: int) -> Sequence[str]:
     return [data["school"] for data in get_all_teams_data(year)]
 
 
-def create_teams_records_dict(
+def create_teams_schedule_dict(
     games: Sequence[Dict[str, Any]]
-) -> Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]]:
+) -> Dict[str, Dict[int, Tuple[Optional[str], Optional[Tuple[int, int]]]]]:
     """
-    Create teams records dictionary.
+    Create teams schedules dictionary.
 
     Args:
-        games:
+        games: Games data.
 
     Returns:
-        Teams records dictionary.
+        Teams schedules dictionary.
     """
     teams_dict: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]] = {}
     last_week = 0  # Measure the last week from season.
@@ -80,71 +80,82 @@ def create_teams_records_dict(
 
         # If points is None. It means the game didn't happened yet, or was cancelled.
         if game["home_points"] is not None:
-            home_points_diff = game["home_points"] - game["away_points"]
-            away_points_diff = game["away_points"] - game["home_points"]
+            home_score = (game["home_points"], game["away_points"])
+            away_score = (game["away_points"], game["home_points"])
         else:
-            home_points_diff = None
-            away_points_diff = None
+            home_score = None
+            away_score = None
 
         # Update dictionary if there is already an entry for this team.
         if home_team in teams_dict:
-            teams_dict[home_team].update({week: (away_team, home_points_diff)})
+            teams_dict[home_team].update({week: (away_team, home_score)})
         else:
-            teams_dict[home_team] = {week: (away_team, home_points_diff)}
+            teams_dict[home_team] = {week: (away_team, home_score)}
 
         # Do the same for away team.
         if away_team in teams_dict:
-            teams_dict[away_team].update({week: (home_team, away_points_diff)})
+            teams_dict[away_team].update({week: (home_team, away_score)})
         else:
-            teams_dict[away_team] = {week: (home_team, away_points_diff)}
+            teams_dict[away_team] = {week: (home_team, away_score)}
 
-    for records in teams_dict.values():
+    for schedules in teams_dict.values():
         for i in range(1, last_week + 1):
-            if i not in records:
-                records[i] = (None, None)
+            if i not in schedules:
+                schedules[i] = (None, None)
 
     return teams_dict
 
 
-def prepare_data(
-    games: Sequence[Dict[str, Any]], week: int
+def create_teams_margins_dict(
+    teams_schedules: Dict[str, Dict[int, Tuple[Optional[str], Optional[Tuple[int, int]]]]]
 ) -> Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]]:
     """
-    Transform game records into team's records.
+    Create teams margins dictionary.
 
     Args:
-        games: Games data.
-        week: Max week to consider.
+        teams_schedules: Teams schedule data.
 
     Returns:
-        Each team's ecord.
+        Teams margins dictionary.
     """
-    teams_records = create_teams_records_dict(games)
-    filter_week(teams_records=teams_records, week=week)
-    return teams_records
+    teams_dict: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]] = {}
+    # Iterate through all teams.
+    for team, teams_schedules in teams_schedules.items():
+        margins: Dict[int, Tuple[Optional[str], Optional[int]]] = {}
+        # Calculates margin.
+        for week, data in teams_schedules.items():
+            rival, score = data  # Unpack
+            if score is not None:
+                margins[week] = (rival, score[0] - score[-1])
+            else:
+                margins[week] = data
+        teams_dict[team] = margins
+
+    return teams_dict
 
 
 def filter_week(
-    teams_records: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]], week: int,
+    teams_margins: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]], week: int,
 ):
     """
     Erase data from every week after the one specified.
 
     Args:
-        teams_records: Each team's records.
+        teams_margins: Each team's margins.
         week: Max week to keep.
 
     Returns:
-        Records with weeks above the limit erased.
+        Margins with weeks above the limit erased.
     """
-    for records in teams_records.values():
-        for game_week in records.keys():
+    for margins in teams_margins.values():
+        for game_week in margins.keys():
             if game_week > week:
-                records[game_week] = (None, None)
+                rival = margins[game_week][0]
+                margins[game_week] = (rival, None)
 
 
 def evaluate(
-    teams_records: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]],
+    teams_margins: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]],
     func: Callable,
     *args,
     **kwargs,
@@ -153,7 +164,7 @@ def evaluate(
     Evaluate rankings.
 
     Args:
-        teams_records: Teams records.
+        teams_margins: Teams margins.
         func: Function to evaluate teams power.
         args: Positional argument from func.
         kwargs: Keyword arguments from func.
@@ -162,7 +173,7 @@ def evaluate(
         Teams rankings.
     """
     # Run power function;
-    teams_power = func(teams_records, *args, **kwargs)
+    teams_power = func(teams_margins, *args, **kwargs)
 
     # Unpack and sort teams.
     teams = list(teams_power.keys())
@@ -171,20 +182,20 @@ def evaluate(
 
 
 def create_records_dict(
-    teams_records: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]]
+    teams_margins: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]]
 ) -> Dict[str, str]:
     """
     Create dictionary with each team's aggregate records.
 
     Args:
-        teams_records: Each team's records.
+        teams_margins: Each team's margins for every game.
 
     Returns:
         Dictionary with team as key and aggregated records as vale.
     """
     records_dict: Dict[str, str] = {}
-    for name, records in teams_records.items():
-        n_wins = sum([1 for game in records.values() if game[-1] and game[-1] > 0])
-        n_loses = sum([1 for game in records.values() if game[-1] and game[-1] < 0])
+    for name, margins in teams_margins.items():
+        n_wins = sum([1 for game in margins.values() if game[-1] and game[-1] > 0])
+        n_loses = sum([1 for game in margins.values() if game[-1] and game[-1] < 0])
         records_dict.update({name: f"{n_wins}-{n_loses}"})
     return records_dict
