@@ -49,9 +49,22 @@ def get_all_teams_names(year: int) -> Sequence[str]:
         year: Season year.
 
     Returns:
-        Sequence of dictionaries with each FBS team data.
+        Sequence of FBS teams names.
     """
     return [data["school"] for data in get_all_teams_data(year)]
+
+
+def get_all_teams_logos(year: int) -> Dict[str, str]:
+    """
+    Get all teams logo.
+
+    Args:
+        year: Season year.
+
+    Returns:
+        Sequence of FBS teams logo URL.
+    """
+    return {data["school"]: data["logos"][0] for data in get_all_teams_data(year)}
 
 
 def create_teams_schedule_dict(

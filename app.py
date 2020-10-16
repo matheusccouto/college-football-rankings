@@ -21,6 +21,12 @@ def get_all_games_data(year: int) -> Sequence[Dict[str, Any]]:
 
 
 @st.cache(show_spinner=False)
+def get_all_teams_logos(year: int) -> Dict[str, str]:
+    """ Get all teams logo. Keep on cache until changes args."""
+    return cfr.get_all_teams_logos(year=year)
+
+
+@st.cache(show_spinner=False)
 def get_polls(year: int, week: int) -> Dict[str, Sequence[str]]:
     """ Get rankings from specified year and week. """
     college_football_api = cfapi.CollegeFootballAPI()
@@ -92,6 +98,17 @@ def schedule_to_dataframe(
     return data_frame
 
 
+def add_logos_and_records(
+    series: pd.Series, logos_dict: Dict[str, str], records_dict: Dict[str, str]
+) -> pd.Series:
+    """ Add teams logo and records to every item in a pandas Series. """
+    values = [
+        f'<img src="{logos_dict[team]}" height="32"> {team} {records_dict[team]}'
+        for team in series
+    ]
+    return pd.Series(values, index=series.index)
+
+
 def main():
     """ User interface. """
     # Page configuration.
@@ -105,6 +122,7 @@ def main():
     # Download season data.
     year = st.selectbox("Year", options=range(THIS_YEAR, FIRST_YEAR - 1, -1))
     games = get_all_games_data(year)
+    logos = get_all_teams_logos(year)
     # Find out the number of regular weeks.
     n_weeks = get_last_week(games)
     n_played_weeks = get_last_played_week(games)
@@ -143,8 +161,16 @@ def main():
         }
 
         # Transform data into a dataframe and show it.
-        data_frame = pd.DataFrame(ranks_with_records, index=range(1, ranking_len + 1))
-        st.table(data_frame)
+        index = [f"#{i}" for i in range(1, ranking_len + 1)]
+        data_frame = pd.DataFrame(ranks_with_records, index=index)
+        # st.table(data_frame)  # FIXME: Clean this mess
+
+        data_frame = pd.DataFrame(ranks, index=index)
+        data_frame = data_frame.apply(
+            add_logos_and_records, logos_dict=logos, records_dict=records
+        )
+        html_table = data_frame.to_html(escape=False, justify="center", border=0,)
+        st.write(html_table, unsafe_allow_html=True)
 
         # Select team to see schedule.
         st.header(":date: Schedule")
