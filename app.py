@@ -1,7 +1,8 @@
+""" College Football Rankings web app. """
+
 import datetime
 from typing import Sequence, Dict, Any, Tuple, Optional
 
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -85,16 +86,17 @@ def schedule_to_dataframe(
             score = f"{score[0]} x {score[1]}"
         # Store cleaned data.
         cleaned[i] = (rival, score)
-    df = pd.DataFrame(cleaned).transpose()
-    df.columns = ["Opponent", "Score"]
-    return df
+    data_frame = pd.DataFrame(cleaned).transpose()
+    data_frame.columns = ["Opponent", "Score"]
+    return data_frame
 
 
 def main():
     """ User interface. """
-
     # Page configuration.
-    st.beta_set_page_config(page_title="College Football Rankings")
+    st.beta_set_page_config(
+        page_title="College Football Rankings", page_icon=r"img\favicon.png"
+    )
 
     st.title(":football: College Football Rankings")
 
@@ -106,15 +108,17 @@ def main():
     n_played_weeks = get_last_played_week(games)
 
     # Select week.
-    week = st.slider("Week", min_value=1, max_value=n_played_weeks, value=n_played_weeks)
+    week = st.slider(
+        "Week", min_value=1, max_value=n_played_weeks, value=n_played_weeks
+    )
 
     st.header(":trophy: Rankings")
     with st.spinner("Evaluating rankings..."):
         # Get polls for selected year and week.
         polls = get_polls(year=year, week=week)
-        # Remove FCS and Division II polls.
-        polls = {key: val for key, val in polls.items() if "FCS" not in key}
-        polls = {key: val for key, val in polls.items() if "Division II" not in key}
+        # Keep only relevant polls
+        to_keep = ["Playoff Committee Rankings", "AP Top 25", "Coaches Poll"]
+        polls = {key: val for key, val in polls.items() if key in to_keep}
         # Get that year's poll length.
         ranking_len = max([len(val) for val in polls.values()])
 
@@ -137,8 +141,8 @@ def main():
         }
 
         # Transform data into a dataframe and show it.
-        df = pd.DataFrame(ranks_with_records, index=range(1, ranking_len + 1))
-        st.table(df)
+        data_frame = pd.DataFrame(ranks_with_records, index=range(1, ranking_len + 1))
+        st.table(data_frame)
 
         # Select team to see schedule.
         st.header(":date: Schedule")

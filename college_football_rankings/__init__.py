@@ -107,7 +107,9 @@ def create_teams_schedule_dict(
 
 
 def create_teams_margins_dict(
-    teams_schedules: Dict[str, Dict[int, Tuple[Optional[str], Optional[Tuple[int, int]]]]]
+    teams_schedules: Dict[
+        str, Dict[int, Tuple[Optional[str], Optional[Tuple[int, int]]]]
+    ]
 ) -> Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]]:
     """
     Create teams margins dictionary.
@@ -120,10 +122,10 @@ def create_teams_margins_dict(
     """
     teams_dict: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]] = {}
     # Iterate through all teams.
-    for team, teams_schedules in teams_schedules.items():
+    for team, schedules in teams_schedules.items():
         margins: Dict[int, Tuple[Optional[str], Optional[int]]] = {}
         # Calculates margin.
-        for week, data in teams_schedules.items():
+        for week, data in schedules.items():
             rival, score = data  # Unpack
             if score is not None:
                 margins[week] = (rival, score[0] - score[-1])
