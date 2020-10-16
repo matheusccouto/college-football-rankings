@@ -1,6 +1,7 @@
 """ College Football Rankings web app. """
 
 import datetime
+import os
 from typing import Sequence, Dict, Any, Tuple, Optional
 
 import pandas as pd
@@ -95,7 +96,8 @@ def main():
     """ User interface. """
     # Page configuration.
     st.beta_set_page_config(
-        page_title="College Football Rankings", page_icon=r"img\favicon.png"
+        page_title="College Football Rankings",
+        page_icon=os.path.join("img", "favicon.png"),
     )
 
     st.title(":football: College Football Rankings")
