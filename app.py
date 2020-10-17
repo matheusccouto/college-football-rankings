@@ -21,6 +21,12 @@ def get_all_games_data(year: int) -> Sequence[Dict[str, Any]]:
 
 
 @st.cache(show_spinner=False)
+def get_all_teams_logos(year: int) -> Dict[str, str]:
+    """ Get all teams logo. Keep on cache until changes args."""
+    return cfr.get_all_teams_logos(year=year)
+
+
+@st.cache(show_spinner=False)
 def get_polls(year: int, week: int) -> Dict[str, Sequence[str]]:
     """ Get rankings from specified year and week. """
     college_football_api = cfapi.CollegeFootballAPI()
@@ -58,9 +64,7 @@ def append_records(
 
 
 def schedule_to_dataframe(
-    schedule: Dict[int, Tuple[Optional[str], Optional[Tuple[int, int]]]],
-    ranking: Sequence[str],
-    week: int,
+    schedule: Dict[int, Tuple[Optional[str], Optional[Tuple[int, int]]]], week: int,
 ) -> pd.DataFrame:
     """ Transform schedule data into a DataFrame. """
     cleaned: Dict[int, Tuple[str, str]] = {}
@@ -75,10 +79,6 @@ def schedule_to_dataframe(
             cleaned[i] = ("-", "-")
             continue
         # If the team played, clean data.
-        # Prepend rank.
-        if rival in ranking:
-            rival_pos = ranking.index(rival) + 1
-            rival = f"#{rival_pos} {rival}"
         # If it is yet to play, erase score.
         if score is None:
             score = "-"
@@ -90,6 +90,54 @@ def schedule_to_dataframe(
     data_frame = pd.DataFrame(cleaned).transpose()
     data_frame.columns = ["Opponent", "Score"]
     return data_frame
+
+
+def create_html_tag(
+    team: str,
+    logos_dict: Optional[Dict[str, str]] = None,
+    rankings: Optional[Sequence[str]] = None,
+    records_dict: Optional[Dict[str, str]] = None,
+) -> str:
+    """ Create html tag with logo, ranking, team name and record. """
+    logo = ""
+    if logos_dict is not None:
+        try:
+            logo = f'<img src="{logos_dict[team]}" height="16"> '
+        except KeyError:
+            pass
+    rank = ""
+    if rankings is not None:
+        try:
+            rank = f"#{rankings.index(team)} "
+        except ValueError:
+            pass
+    record = ""
+    if records_dict is not None:
+        try:
+            record = f" {records_dict[team]}"
+        except KeyError:
+            pass
+    return logo + rank + team + record
+
+
+def add_logos_and_records(
+    series: pd.Series,
+    logos_dict: Optional[Dict[str, str]] = None,
+    rankings: Optional[Sequence[str]] = None,
+    records_dict: Optional[Dict[str, str]] = None,
+) -> pd.Series:
+    """ Add teams logo and records to every item in a pandas Series. """
+    values = [
+        create_html_tag(team, logos_dict, rankings, records_dict) for team in series
+    ]
+    return pd.Series(values, index=series.index)
+
+
+def format_html_table(html: str) -> str:
+    """ Format a html table. """
+    html = html.replace("<table", "<table width=100%")
+    html = html.replace("<table", '<table style="text-align: right;"')
+    return html
 
 
 def main():
@@ -105,6 +153,7 @@ def main():
     # Download season data.
     year = st.selectbox("Year", options=range(THIS_YEAR, FIRST_YEAR - 1, -1))
     games = get_all_games_data(year)
+    logos = get_all_teams_logos(year)
     # Find out the number of regular weeks.
     n_weeks = get_last_week(games)
     n_played_weeks = get_last_played_week(games)
@@ -137,27 +186,35 @@ def main():
 
         # Append the records to the teams names in the rankings.
         records = cfr.create_records_dict(teams_margins)
-        ranks_with_records = {
-            name: [append_records(team, records) for team in rank]
-            for name, rank in ranks.items()
-        }
 
         # Transform data into a dataframe and show it.
-        data_frame = pd.DataFrame(ranks_with_records, index=range(1, ranking_len + 1))
-        st.table(data_frame)
+        index = [f"#{i}" for i in range(1, ranking_len + 1)]
+        data_frame = pd.DataFrame(ranks, index=index)
+        data_frame = data_frame.apply(
+            add_logos_and_records, logos_dict=logos, records_dict=records
+        )
+        html_table = data_frame.to_html(escape=False)
+        html_table = format_html_table(html_table)
+        st.write(html_table, unsafe_allow_html=True)
 
         # Select team to see schedule.
         st.header(":date: Schedule")
         team = st.selectbox("Select team", options=sorted(teams_schedules.keys()))
 
         # Select ranking to show next to the teams name.
-        show_ranking = st.selectbox("Select ranking", options=list(ranks.keys()))
-        selected_ranking = ranks[show_ranking]
+        ranking_to_show = st.selectbox("Select ranking", options=list(ranks.keys()))
+        selected_ranking = ranks[ranking_to_show]
 
-        schedule_df = schedule_to_dataframe(
-            teams_schedules[team], ranking=selected_ranking, week=n_weeks
+        schedule_df = schedule_to_dataframe(teams_schedules[team], week=n_weeks)
+        schedule_df["Opponent"] = add_logos_and_records(
+            schedule_df["Opponent"],
+            logos_dict=logos,
+            rankings=selected_ranking,
         )
-        st.table(schedule_df)
+        # TODO Reduce index width
+        schedule_html_table = schedule_df.to_html(escape=False)
+        schedule_html_table = format_html_table(schedule_html_table)
+        st.write(schedule_html_table, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
