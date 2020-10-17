@@ -108,7 +108,7 @@ def create_html_tag(
     rank = ""
     if rankings is not None:
         try:
-            rank = f"#{rankings.index(team)} "
+            rank = f"#{rankings.index(team) + 1} "
         except ValueError:
             pass
     record = ""
