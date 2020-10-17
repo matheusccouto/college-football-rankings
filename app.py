@@ -108,7 +108,7 @@ def create_html_tag(
     rank = ""
     if rankings is not None:
         try:
-            rank = f"#{rankings.index(team)} "
+            rank = f"#{rankings.index(team) + 1} "
         except ValueError:
             pass
     record = ""
@@ -151,7 +151,7 @@ def main():
     st.title(":football: College Football Rankings")
 
     # Download season data.
-    year = st.selectbox("Year", options=range(THIS_YEAR, FIRST_YEAR - 1, -1))
+    year = st.selectbox("Select year", options=range(THIS_YEAR, FIRST_YEAR - 1, -1))
     games = get_all_games_data(year)
     logos = get_all_teams_logos(year)
     # Find out the number of regular weeks.
@@ -160,7 +160,7 @@ def main():
 
     # Select week.
     week = st.slider(
-        "Week", min_value=1, max_value=n_played_weeks, value=n_played_weeks
+        "Select week", min_value=1, max_value=n_played_weeks, value=n_played_weeks
     )
 
     st.header(":trophy: Rankings")
@@ -179,25 +179,43 @@ def main():
         teams_margins = cfr.create_teams_margins_dict(teams_schedules)
 
         # Evaluate iterative ranking.
-        ranking = cfr.evaluate(teams_margins, func=cfr.iterative.power, score=False)
+        no_margin_ranking = cfr.evaluate(
+            teams_margins, func=cfr.iterative.power, score=False
+        )
+        margin_ranking = cfr.evaluate(
+            teams_margins, func=cfr.iterative.power, score=True
+        )
 
         # Merge rankings into a single dictionary.
-        ranks = {**{"Iterative algorithm": ranking[:ranking_len]}, **polls}
+        ranks = {
+            **{"Margin Unaware Algorithm": no_margin_ranking[:ranking_len]},
+            **{"Margin Aware Algorithm": margin_ranking[:ranking_len]},
+            **polls,
+        }
 
-        # Append the records to the teams names in the rankings.
-        records = cfr.create_records_dict(teams_margins)
-
-        # Transform data into a dataframe and show it.
-        index = [f"#{i}" for i in range(1, ranking_len + 1)]
-        data_frame = pd.DataFrame(ranks, index=index)
-        data_frame = data_frame.apply(
-            add_logos_and_records, logos_dict=logos, records_dict=records
+        selected_ranks = st.multiselect(
+            "Select rankings",
+            options=list(ranks.keys()),
+            # default=["Margin Unaware Algorithm", "Margin Aware Algorithm"],
         )
-        html_table = data_frame.to_html(escape=False)
-        html_table = format_html_table(html_table)
-        st.write(html_table, unsafe_allow_html=True)
+        selected_ranks = {name: ranks[name] for name in selected_ranks}
+
+        if selected_ranks:
+            # Append the records to the teams names in the rankings.
+            records = cfr.create_records_dict(teams_margins)
+
+            # Transform data into a dataframe and show it.
+            index = [f"#{i}" for i in range(1, ranking_len + 1)]
+            data_frame = pd.DataFrame(selected_ranks, index=index)
+            data_frame = data_frame.apply(
+                add_logos_and_records, logos_dict=logos, records_dict=records
+            )
+            html_table = data_frame.to_html(escape=False)
+            html_table = format_html_table(html_table)
+            st.write(html_table, unsafe_allow_html=True)
 
         # Select team to see schedule.
+        st.title("")  # Blank line.
         st.header(":date: Schedule")
         team = st.selectbox("Select team", options=sorted(teams_schedules.keys()))
 
@@ -207,9 +225,7 @@ def main():
 
         schedule_df = schedule_to_dataframe(teams_schedules[team], week=n_weeks)
         schedule_df["Opponent"] = add_logos_and_records(
-            schedule_df["Opponent"],
-            logos_dict=logos,
-            rankings=selected_ranking,
+            schedule_df["Opponent"], logos_dict=logos, rankings=selected_ranking,
         )
         # TODO Reduce index width
         schedule_html_table = schedule_df.to_html(escape=False)
