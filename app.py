@@ -1,9 +1,12 @@
 """ College Football Rankings web app. """
 
+import copy
 import datetime
 import os
-from typing import Sequence, Dict, Any, Tuple, Optional
+from typing import Sequence, Dict, Any
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -12,30 +15,54 @@ import college_football_rankings as cfr
 
 FIRST_YEAR = 1980
 THIS_YEAR = datetime.date.today().year
+RANKING_LEN = 25
 
 
 @st.cache(show_spinner=False)
-def get_all_games_data(year: int) -> Sequence[Dict[str, Any]]:
+def evaluate(teams_margins, name, *args, **kwargs):
+    """ Run evaluate multiple times using cache. """
+    rankings = dict()
+    for i, margin in enumerate(teams_margins):
+        try:
+            rankings.update({i + 1: {name: cfr.evaluate(margin, *args, **kwargs)}})
+        except cfr.iterative.EquilibriumError:
+            pass
+    return rankings
+
+
+@st.cache(show_spinner=False)
+def get_all_games_data(year):
     """ Get all games data. Keep on cache until changes args."""
     return cfr.get_all_games_data(year=year)
 
 
 @st.cache(show_spinner=False)
-def get_all_teams_logos(year: int) -> Dict[str, str]:
+def get_all_teams_logos(year):
     """ Get all teams logo. Keep on cache until changes args."""
     return cfr.get_all_teams_logos(year=year)
 
 
-@st.cache(show_spinner=False)
-def get_polls(year: int, week: int) -> Dict[str, Sequence[str]]:
+@st.cache(show_spinner=False, allow_output_mutation=True)
+def get_polls(year):
     """ Get rankings from specified year and week. """
     college_football_api = cfapi.CollegeFootballAPI()
-    data = college_football_api.rankings(year=year, week=week)[0]
-    polls = data["polls"]
-    return {poll["poll"]: [pos["school"] for pos in poll["ranks"]] for poll in polls}
+    data = college_football_api.rankings(year=year)
+
+    # Polls to keep
+    to_keep = ["Playoff Committee Rankings", "AP Top 25", "Coaches Poll"]
+
+    weeks = dict()
+    for week in data:
+        polls = dict()
+        for poll in week["polls"]:
+            if poll["poll"] not in to_keep:
+                continue
+            polls.update({poll["poll"]: [pos["school"] for pos in poll["ranks"]]})
+        weeks.update({week["week"] - 1: polls})
+    return weeks
 
 
-def get_last_week(games: Sequence[Dict[str, Any]]) -> int:
+def get_last_week(games):
     """ Get last regular week. """
     for game in reversed(games):
         if "regular" not in game["season_type"]:
@@ -54,7 +81,7 @@ def get_last_played_week(games: Sequence[Dict[str, Any]]) -> int:
 
 
 def append_records(
-    team: str, teams_records: Dict[str, str],
+    team, teams_records,
 ):
     """ Append records to school name."""
     try:
@@ -64,10 +91,10 @@ def append_records(
 
 
 def schedule_to_dataframe(
-    schedule: Dict[int, Tuple[Optional[str], Optional[Tuple[int, int]]]], week: int,
-) -> pd.DataFrame:
+    schedule, week,
+):
     """ Transform schedule data into a DataFrame. """
-    cleaned: Dict[int, Tuple[str, str]] = {}
+    cleaned = {}
     for i in range(1, week + 1):
         # If the team didn't play this week, leave it blank.
         if i not in schedule:
@@ -93,11 +120,8 @@ def schedule_to_dataframe(
 
 
 def create_html_tag(
-    team: str,
-    logos_dict: Optional[Dict[str, str]] = None,
-    rankings: Optional[Sequence[str]] = None,
-    records_dict: Optional[Dict[str, str]] = None,
-) -> str:
+    team, logos_dict=None, rankings=None, records_dict=None,
+):
     """ Create html tag with logo, ranking, team name and record. """
     logo = ""
     if logos_dict is not None:
@@ -121,11 +145,8 @@ def create_html_tag(
 
 
 def add_logos_and_records(
-    series: pd.Series,
-    logos_dict: Optional[Dict[str, str]] = None,
-    rankings: Optional[Sequence[str]] = None,
-    records_dict: Optional[Dict[str, str]] = None,
-) -> pd.Series:
+    series, logos_dict=None, rankings=None, records_dict=None,
+):
     """ Add teams logo and records to every item in a pandas Series. """
     values = [
         create_html_tag(team, logos_dict, rankings, records_dict) for team in series
@@ -133,11 +154,85 @@ def add_logos_and_records(
     return pd.Series(values, index=series.index)
 
 
-def format_html_table(html: str) -> str:
+def format_html_table(html):
     """ Format a html table. """
     html = html.replace("<table", "<table width=100%")
     html = html.replace("<table", '<table style="text-align: right;"')
     return html
+
+
+def all_weeks_margins(teams_schedules, week):
+    """ Calculate all weeks margins. """
+    margins = []
+    team_schedules_copy = copy.deepcopy(teams_schedules)
+    for i in range(week, 0, -1):
+        cfr.filter_week(teams_margins=team_schedules_copy, week=i)
+        teams_margins = cfr.create_teams_margins_dict(team_schedules_copy)
+        margins.append(teams_margins)
+    return list(reversed(margins))
+
+
+def merge_rankings(*args):
+    """ Merge rankings dict by dict. """
+    merged = {}
+    for arg in args:
+        for key, val in arg.items():
+            if key in merged:
+                merged[key].update(val)
+            else:
+                merged[key] = val
+    return merged
+
+
+def time_series(rankings, team, ranking_name, max_pos):
+    """ Build team time series ranking. """
+    series = {}
+    for week, ranks in rankings.items():
+        if ranking_name in ranks:
+            standings = ranks[ranking_name]
+            try:
+                position = standings.index(team) + 1
+            except ValueError:
+                position = np.nan
+        else:
+            position = np.nan
+        if position and position > max_pos:
+            position = np.nan
+        series.update({week: position})
+    return series
+
+
+def plot_team_series(team_time_series, week):
+    x = sorted(list(team_time_series.keys()))
+    y = [y for _, y in sorted(zip(team_time_series.keys(), team_time_series.values()))]
+    fig, ax = plt.subplots(figsize=(10, 2))
+    ax.plot(x, y, color="hotpink")
+    ax.set_xlim(0, week)
+    ax.set_ylim(RANKING_LEN + 1, 1)
+    for key, val in team_time_series.items():
+        if val is None:
+            continue
+        ax.annotate(
+            f"#{val}",
+            (key, val),
+            va="center",
+            ha="center",
+            bbox=dict(boxstyle="circle", fc="white", lw=0),
+        )
+    ax.set_xticks(range(week + 1))
+    ax.set_yticks([])
+    ax.xaxis.set_tick_params(length=0)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    st.pyplot(fig, clear_figure=True)
+
+
+def extend_list(lst, size, val):
+    """ Extend a list with an specified value. """
+    lst += [val] * (size - len(lst))
+    return lst
 
 
 def main():
@@ -163,74 +258,100 @@ def main():
         "Select week", min_value=1, max_value=n_played_weeks, value=n_played_weeks
     )
 
+    # Rankings
+
+    # Title
+    st.title("")  # Blank line.
     st.header(":trophy: Rankings")
-    with st.spinner("Evaluating rankings..."):
-        # Get polls for selected year and week.
-        polls = get_polls(year=year, week=week)
-        # Keep only relevant polls
-        to_keep = ["Playoff Committee Rankings", "AP Top 25", "Coaches Poll"]
-        polls = {key: val for key, val in polls.items() if key in to_keep}
-        # Get that year's poll length.
-        ranking_len = max([len(val) for val in polls.values()])
 
-        # Prepare teams schedules data.
-        teams_schedules = cfr.create_teams_schedule_dict(games)
-        cfr.filter_week(teams_margins=teams_schedules, week=week)
-        teams_margins = cfr.create_teams_margins_dict(teams_schedules)
+    # Get ranks for selected year and week.
+    all_weeks_rankings = get_polls(year=year)
 
-        # Evaluate iterative ranking.
-        no_margin_ranking = cfr.evaluate(
-            teams_margins, func=cfr.iterative.power, score=False
+    # Avoid mutating the return of st.cache
+    ranks = copy.deepcopy(all_weeks_rankings)
+
+    # Prepare teams schedules data.
+    teams_schedules = cfr.create_teams_schedule_dict(games)
+    cfr.filter_week(teams_schedules, week)
+    margins = all_weeks_margins(teams_schedules, n_played_weeks)
+    selected_margins = margins[week - 1]  # -1 to convert to index starting in 0.
+
+    # Append the records to the teams names in the rankings.
+    records = cfr.create_records_dict(selected_margins)
+
+    # Evaluate custom rankings.
+    with st.spinner("Preparing rankings..."):
+
+        # Evaluate Margin Unaware Algorithm.
+        margin_unaware = evaluate(
+            margins,
+            name="Margin Unaware Algorithm",
+            func=cfr.iterative.power,
+            score=False,
         )
-        margin_ranking = cfr.evaluate(
-            teams_margins, func=cfr.iterative.power, score=True
+        # Evaluate Margin Aware Algorithm.
+        margin_aware = evaluate(
+            margins, name="Margin Aware Algorithm", func=cfr.iterative.power, score=True
         )
 
-        # Merge rankings into a single dictionary.
-        ranks = {
-            **{"Margin Unaware Algorithm": no_margin_ranking[:ranking_len]},
-            **{"Margin Aware Algorithm": margin_ranking[:ranking_len]},
-            **polls,
-        }
+    # Merge
+    merge_rankings(ranks, margin_unaware, margin_aware)
 
-        selected_ranks = st.multiselect(
-            "Select rankings",
-            options=list(ranks.keys()),
-            # default=["Margin Unaware Algorithm", "Margin Aware Algorithm"],
+    # Extract ranks from selected week.
+    week_ranks = ranks[week]
+
+    # Select ranks to show.
+    selected_ranks = st.multiselect("Select rankings", options=list(week_ranks.keys()))
+    # Prepare dict with ranks to show.
+    selected_ranks = {name: week_ranks[name][:RANKING_LEN] for name in selected_ranks}
+
+    # If selected any ranking.
+    if selected_ranks:
+
+        # Transform data into a dataframe and show it.
+        index = [f"#{i}" for i in range(1, RANKING_LEN + 1)]
+        data_frame = pd.DataFrame(selected_ranks, index=index)
+        data_frame = data_frame.apply(
+            add_logos_and_records, logos_dict=logos, records_dict=records
         )
-        selected_ranks = {name: ranks[name] for name in selected_ranks}
+        html_table = data_frame.to_html(escape=False)
+        html_table = format_html_table(html_table)
+        st.write(html_table, unsafe_allow_html=True)
 
-        if selected_ranks:
-            # Append the records to the teams names in the rankings.
-            records = cfr.create_records_dict(teams_margins)
+    st.title("")  # Blank line.
 
-            # Transform data into a dataframe and show it.
-            index = [f"#{i}" for i in range(1, ranking_len + 1)]
-            data_frame = pd.DataFrame(selected_ranks, index=index)
-            data_frame = data_frame.apply(
-                add_logos_and_records, logos_dict=logos, records_dict=records
-            )
-            html_table = data_frame.to_html(escape=False)
-            html_table = format_html_table(html_table)
-            st.write(html_table, unsafe_allow_html=True)
+    # Select team to see schedule.
+    team = st.selectbox(
+        "Select team", options=sorted(teams_schedules.keys()), key="schedule team"
+    )
 
-        # Select team to see schedule.
-        st.title("")  # Blank line.
-        st.header(":date: Schedule")
-        team = st.selectbox("Select team", options=sorted(teams_schedules.keys()))
+    # Select ranking to show next to the teams name.
+    ranking_to_show = st.selectbox(
+        "Select ranking", options=list(week_ranks.keys()), key="schedule ranking"
+    )
+    selected_ranking = week_ranks[ranking_to_show][:RANKING_LEN]
 
-        # Select ranking to show next to the teams name.
-        ranking_to_show = st.selectbox("Select ranking", options=list(ranks.keys()))
-        selected_ranking = ranks[ranking_to_show]
+    # Schedule
 
-        schedule_df = schedule_to_dataframe(teams_schedules[team], week=n_weeks)
-        schedule_df["Opponent"] = add_logos_and_records(
-            schedule_df["Opponent"], logos_dict=logos, rankings=selected_ranking,
-        )
-        # TODO Reduce index width
-        schedule_html_table = schedule_df.to_html(escape=False)
-        schedule_html_table = format_html_table(schedule_html_table)
-        st.write(schedule_html_table, unsafe_allow_html=True)
+    st.text("")  # Blank line.
+    st.header(":date: Schedule")
+
+    schedule_df = schedule_to_dataframe(teams_schedules[team], week=n_weeks)
+    schedule_df["Opponent"] = add_logos_and_records(
+        schedule_df["Opponent"], logos_dict=logos, rankings=selected_ranking,
+    )
+    team_time_series = time_series(ranks, team, ranking_to_show, RANKING_LEN)
+    schedule_df["Ranking"] = pd.Series(team_time_series)
+    schedule_df = schedule_df.fillna("-")
+
+    schedule_html_table = schedule_df.to_html(escape=False)
+    schedule_html_table = format_html_table(schedule_html_table)
+    st.write(schedule_html_table, unsafe_allow_html=True)
+
+    st.text("")  # Blank line.
+    st.header(":chart_with_upwards_trend:Evolution")
+
+    plot_team_series(team_time_series, n_weeks)
 
 
 if __name__ == "__main__":
