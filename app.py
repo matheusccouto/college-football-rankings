@@ -275,12 +275,14 @@ def main():
     n_weeks = get_last_week(games)
     n_played_weeks = get_last_played_week(games)
 
-
     # Select week.
     week = st.slider(
         "Select week", min_value=1, max_value=n_played_weeks, value=n_played_weeks
     )
-    apply_proj = st.checkbox("Apply projections")
+    # FIXME Currently disable due to poor projections.
+    # apply_proj = st.checkbox("Apply projections")
+    apply_proj = False
+
     if apply_proj:
         max_weeks = n_weeks
         show_week = st.slider(
