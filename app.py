@@ -18,7 +18,7 @@ THIS_YEAR = datetime.date.today().year
 RANKING_LEN = 25
 
 
-@st.cache(show_spinner=False)
+@st.cache(show_spinner=False, allow_output_mutation=True)
 def evaluate(teams_margins, name, *args, **kwargs):
     """ Run evaluate multiple times using cache. """
     rankings = dict()
@@ -202,12 +202,26 @@ def time_series(rankings, team, ranking_name, max_pos):
     return series
 
 
-def plot_team_series(team_time_series, week):
+def plot_team_series(team_time_series, max_weeks, current_week, last_week):
+    """ Plot time series from team rankings. """
+    team_time_series = {
+        week: rank for week, rank in team_time_series.items() if int(week) <= last_week
+    }
     x = sorted(list(team_time_series.keys()))
     y = [y for _, y in sorted(zip(team_time_series.keys(), team_time_series.values()))]
+
+    proj_x = x[current_week:]
+    proj_y = y[current_week:]
+
+    x = x[:current_week + 1]
+    y = y[:current_week + 1]
+
     fig, ax = plt.subplots(figsize=(10, 2))
+
+    ax.plot(proj_x, proj_y, color="lightgray", ls="--")
     ax.plot(x, y, color="hotpink")
-    ax.set_xlim(0, week)
+
+    ax.set_xlim(0, max_weeks)
     ax.set_ylim(RANKING_LEN + 1, 1)
     for key, val in team_time_series.items():
         if val is None:
@@ -219,7 +233,7 @@ def plot_team_series(team_time_series, week):
             ha="center",
             bbox=dict(boxstyle="circle", fc="white", lw=0),
         )
-    ax.set_xticks(range(week + 1))
+    ax.set_xticks(range(max_weeks + 1))
     ax.set_yticks([])
     ax.xaxis.set_tick_params(length=0)
     ax.spines["top"].set_visible(False)
@@ -229,10 +243,18 @@ def plot_team_series(team_time_series, week):
     st.pyplot(fig, clear_figure=True)
 
 
-def extend_list(lst, size, val):
-    """ Extend a list with an specified value. """
-    lst += [val] * (size - len(lst))
-    return lst
+def project_future_margins(margins, ranking, selected_week, total_weeks):
+    """ Create projected margins. """
+    new_margins = []
+    for week in range(1, total_weeks + 1, 1):
+        # Copy margins.
+        projected_margins = copy.deepcopy(
+            margins[np.clip(selected_week, None, len(margins)) - 1]
+        )
+        # Apply projections
+        cfr.project_teams_margins(projected_margins, ranking, week)
+        new_margins.append(projected_margins)
+    return new_margins
 
 
 def main():
@@ -253,10 +275,23 @@ def main():
     n_weeks = get_last_week(games)
     n_played_weeks = get_last_played_week(games)
 
+
     # Select week.
     week = st.slider(
         "Select week", min_value=1, max_value=n_played_weeks, value=n_played_weeks
     )
+    apply_proj = st.checkbox("Apply projections")
+    if apply_proj:
+        max_weeks = n_weeks
+        show_week = st.slider(
+            "Select week to project",
+            min_value=1,
+            max_value=max_weeks,
+            value=n_played_weeks,
+        )
+    else:
+        max_weeks = n_played_weeks
+        show_week = week
 
     # Rankings
 
@@ -273,9 +308,10 @@ def main():
     # Prepare teams schedules data.
     teams_schedules = cfr.create_teams_schedule_dict(games)
     cfr.filter_week(teams_schedules, week)
-    margins = all_weeks_margins(teams_schedules, n_played_weeks)
-    selected_margins = margins[week - 1]  # -1 to convert to index starting in 0.
+    margins = all_weeks_margins(teams_schedules, n_weeks)
 
+    # -1 to convert to index starting in 0.
+    selected_margins = margins[week - 1]
     # Append the records to the teams names in the rankings.
     records = cfr.create_records_dict(selected_margins)
 
@@ -294,11 +330,44 @@ def main():
             margins, name="Margin Aware Algorithm", func=cfr.iterative.power, score=True
         )
 
-    # Merge
-    merge_rankings(ranks, margin_unaware, margin_aware)
+        # Merge
+        ranks = merge_rankings(ranks, margin_unaware, margin_aware)
+        # Extract ranks from selected week.
+        week_ranks = ranks[np.clip(week, None, n_played_weeks)]
 
-    # Extract ranks from selected week.
-    week_ranks = ranks[week]
+        if apply_proj:
+            margins = project_future_margins(
+                margins,
+                ranking=week_ranks["Margin Unaware Algorithm"],
+                selected_week=show_week,
+                total_weeks=n_weeks,
+            )
+            # Evaluate Margin Unaware Algorithm.
+            margin_unaware = evaluate(
+                margins,
+                name="Margin Unaware Algorithm",
+                func=cfr.iterative.power,
+                score=False,
+            )
+
+            margins = project_future_margins(
+                margins,
+                ranking=week_ranks["Margin Aware Algorithm"],
+                selected_week=show_week,
+                total_weeks=n_weeks,
+            )
+            # Evaluate Margin Aware Algorithm.
+            margin_aware = evaluate(
+                margins,
+                name="Margin Aware Algorithm",
+                func=cfr.iterative.power,
+                score=True,
+            )
+
+            # Merge
+            ranks = merge_rankings(ranks, margin_unaware, margin_aware)
+            # Extract ranks from selected week.
+            week_ranks = ranks[show_week]
 
     # Select ranks to show.
     selected_ranks = st.multiselect("Select rankings", options=list(week_ranks.keys()))
@@ -329,6 +398,7 @@ def main():
     ranking_to_show = st.selectbox(
         "Select ranking", options=list(week_ranks.keys()), key="schedule ranking"
     )
+
     selected_ranking = week_ranks[ranking_to_show][:RANKING_LEN]
 
     # Schedule
@@ -340,8 +410,6 @@ def main():
     schedule_df["Opponent"] = add_logos_and_records(
         schedule_df["Opponent"], logos_dict=logos, rankings=selected_ranking,
     )
-    team_time_series = time_series(ranks, team, ranking_to_show, RANKING_LEN)
-    schedule_df["Ranking"] = pd.Series(team_time_series)
     schedule_df = schedule_df.fillna("-")
 
     schedule_html_table = schedule_df.to_html(escape=False)
@@ -351,7 +419,8 @@ def main():
     st.text("")  # Blank line.
     st.header(":chart_with_upwards_trend:Evolution")
 
-    plot_team_series(team_time_series, n_weeks)
+    team_time_series = time_series(ranks, team, ranking_to_show, RANKING_LEN)
+    plot_team_series(team_time_series, max_weeks, week, show_week)
 
 
 if __name__ == "__main__":
