@@ -1,2 +1,2 @@
 # college-football-ranking
-Estimate and predict college football rankings.
+Estimate and project college football rankings.
