@@ -149,6 +149,47 @@ def create_teams_margins_dict(
     return teams_dict
 
 
+def project_teams_margins(
+    teams_margins: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]],
+    teams_rankings: Sequence[str],
+    max_week: int
+):
+    """
+    Include projections in teams margins dictionary.
+
+    Change inplace.
+
+    Args:
+        teams_margins: Teams margins dictionary.
+        teams_rankings: Teams rankings standings.
+        max_week: Max week to project.
+
+    Returns:
+        Teams margins dictionary.
+    """
+    max_points = 50
+    for team, schedule in teams_margins.items():
+        # Get ranking and invert to calculate power.
+        try:
+            team_ranking = teams_rankings.index(team)
+        except ValueError:
+            team_ranking = len(teams_rankings)
+        team_power = 1 - (team_ranking / len(teams_rankings))
+        for week, game in schedule.items():
+            if week > max_week:
+                break
+            rival, margin = game
+            # Look for blank games to project.
+            if rival is not None and margin is None:
+                try:
+                    rival_ranking = teams_rankings.index(rival)
+                except ValueError:
+                    rival_ranking = len(teams_rankings)
+                rival_power = 1 - (rival_ranking / len(teams_rankings))
+                projected_margin = int((team_power - rival_power) * max_points)
+                teams_margins[team][week] = (rival, projected_margin)
+
+
 def filter_week(
     teams_margins: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]], week: int,
 ):
