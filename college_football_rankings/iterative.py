@@ -1,8 +1,10 @@
 """ Iterative method for estimating teams power. """
 
-from typing import Any, Dict, Tuple, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
+
+import college_football_rankings as cfr
 
 
 class EquilibriumError(Exception):
@@ -10,15 +12,7 @@ class EquilibriumError(Exception):
 
 
 def norm(dict_: Dict[Any, float]):
-    """
-    Normalize dictionary values.
-
-    Args:
-        dict_: Dictionary. Values must be numbers.
-
-    Returns:
-        Dictionary with normalized values.
-    """
+    """ Normalize dictionary values. """
     max_val = max(list(dict_.values()))
     min_val = min(list(dict_.values()))
     diff = max_val - min_val
@@ -28,84 +22,81 @@ def norm(dict_: Dict[Any, float]):
 
 
 def max_val_diff(dict1: Dict[Any, float], dict2: Dict[Any, float]) -> float:
-    """
-    Calculate the max difference between two dictionaries values.
-
-    Args:
-        dict1: Dictionary 1.
-        dict2: Dictionary 2.
-
-    Returns:
-        Max difference.
-    """
+    """ Calculate the max difference between two dictionaries values. """
     d1_values = dict1.values()
     d2_values = dict2.values()
     return max([abs(d1_val - d2_val) for d1_val, d2_val in zip(d1_values, d2_values)])
 
 
+def clip(val, min_val, max_val):
+    """ Clip value in between specified values. """
+    if val > max_val:
+        return max_val
+    if val < min_val:
+        return min_val
+    return val
+
+
 def power(
-    teams_records: Dict[str, Dict[int, Tuple[Optional[str], Optional[int]]]],
-    score: bool = False,
+    teams: Dict[str, cfr.Team],
+    consider_margin: bool = False,
     random_state: Optional[int] = None,
-) -> Dict[str, float]:
-    """
-    Iterative algorithm to evaluate teams power.
+):
+    """ Iterative algorithm to evaluate teams power. """
 
-    Args:
-        teams_records: Game records from each team.
-        score: Consider points difference or simple if won or lost.
-        random_state: Random state for initial values.
-
-    Returns:
-        Dictionary where the key is the team name and value is its power.
-    """
-    # Random state.
+    # Define random state.
     rnd = np.random.RandomState(random_state)
 
-    for _ in range(3):  # Number of tries to find Nash Equilibrium
+    # Initialize random power values.
+    for team in teams.values():
+        # Random values from 0.4 to 0.6.
+        team.power = 0.4 + rnd.random() / 10
 
-        # Create a dict with each team name as key and initial power value
-        teams_power = {name: rnd.random() for name in teams_records.keys()}
+    for _ in range(100):  # Number of tries.
 
-        # Duplicate this dictionary so old values do not mix with new ones.
-        new_teams_power = teams_power.copy()
+        # Record current powers in a dict to compare with futures and know when it is
+        # ok to stop the iteration.
+        current_teams_power = {name: team.power for name, team in teams.items()}
 
-        for _ in range(100):  # Number of tries.
+        # Record new calculated powers in a dict to apply only after all team's power
+        # have been calculate.
+        future_teams_power: Dict[str, float] = {}
 
-            # Evaluate each team records considering the power from the rival it faced.
-            for name in teams_power.keys():
+        # Iterate over Team instances.
+        for name, team in teams.items():
 
-                team_records = teams_records[name]  # Select team.
-                new_teams_power[name] = 0  # Initial value.
+            future_teams_power[name] = 0  # Initial value.
 
-                # Iterates over weeks.
-                for rival, balance in team_records.values():
+            for game in team.schedule.games:
 
-                    # If the team played this week, than evaluate how many points it
-                    # gains or lose based on the game results.
-                    if balance is not None:
+                # Skip if the game was not played.
+                margin = game.margin
+                if margin is None:
+                    continue
 
-                        if not score:
-                            # Disregard the amount of points difference in the score.
-                            balance = np.clip(balance, -1, 1)
+                if not consider_margin:
+                    margin = clip(margin, -1, 1)
 
-                        # Sum power (or decrease) power points.
-                        if balance > 0:
-                            # If it beats a high power opponent, it wins more points.
-                            new_teams_power[name] += teams_power[rival] * balance
-                        else:
-                            # If it loses to a low power opponent, it loses more points.
-                            new_teams_power[name] += (1 - teams_power[rival]) * balance
+                opponent_power = teams[game.opponent].power
 
-            # Normalize values.
-            new_teams_power = norm(new_teams_power)
+                # Sum (or decrease) power points.
+                if margin > 0:
+                    # If it beats a high power opponent, it wins more points.
+                    future_teams_power[name] += opponent_power * margin
+                else:
+                    # If it loses to a low power opponent, it loses more points.
+                    future_teams_power[name] += (1 - opponent_power) * margin
 
-            # If values are stable enough, stop iteration.
-            if max_val_diff(teams_power, new_teams_power) < 1e-6:
-                return new_teams_power
+        # Normalize values.
+        future_teams_power_norm = norm(future_teams_power)
 
-            # Apply new values over old values.
-            teams_power = new_teams_power.copy()
+        # Apply calculated power.
+        for name, team in teams.items():
+            team.power = future_teams_power_norm[name]
+
+        # If values are stable enough, stop iteration.
+        if max_val_diff(current_teams_power, future_teams_power_norm) < 1e-6:
+            return
 
     # When running out of tries.
-    raise EquilibriumError("Not enough games to find equilibrium")
+    raise cfr.RankingError("Not enough games played to find equilibrium")
