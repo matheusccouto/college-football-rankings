@@ -33,5 +33,5 @@ def create_html_tag(team: cfr.Team):
 
 def add_logos_and_records(names: Sequence, teams: Dict[str, cfr.Team]) -> Sequence:
     """ Add teams logo and records to every team name. """
-    values = [create_html_tag(teams[team]) for team in names]
+    values = [create_html_tag(teams[team]) if team in teams else "" for team in names]
     return values

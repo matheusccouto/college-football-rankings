@@ -26,9 +26,9 @@ CUSTOM_RANKINGS: List[Dict[str, Any]] = [
 
 
 @st.cache(show_spinner=False, ttl=10800)
-def request_games(year: int) -> List[cfbd.Game]:
+def request_games(year: int, season_type: str) -> List[cfbd.Game]:
     """ Request games and keep it in cache for an hour. """
-    return cfr.get_games(year=year, season_type="regular")
+    return cfr.get_games(year=year, season_type=season_type)
 
 
 @st.cache(show_spinner=False)
@@ -64,7 +64,7 @@ def main():
     year = ui.year_selector(first_year=FIRST_YEAR)
 
     # Games
-    games = request_games(year=year)
+    games = request_games(year=year, season_type="regular")
 
     # Week
     week = ui.week_selector(n_weeks=cfr.last_played_week(games=games))

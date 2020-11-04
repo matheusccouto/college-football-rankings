@@ -110,6 +110,7 @@ class Schedule:
             excitement_index=game.excitement_index,
         )
         self.games.append(game_pov)
+        self.games = list(sorted(self.games, key=lambda x: x.start_date))
 
 
 class Team:
@@ -267,10 +268,23 @@ def clean_teams(teams: Dict[str, Team]) -> Dict[str, Team]:
 
 def last_played_week(games: List[cfbd.Game]) -> int:
     """ Get last played week. """
-    for game in reversed(games):
-        if game.home_points is not None:
-            return game.week
-    return 0
+    last_regular_week = 0
+    last_off_season_week = 0
+
+    for game in games:
+
+        if game.home_points is None:
+            continue
+
+        if "regular" in game.season_type:
+            if game.week > last_regular_week:
+                last_regular_week = game.week
+
+        else:
+            if game.week > last_off_season_week:
+                last_off_season_week = game.week
+
+    return last_regular_week + last_off_season_week
 
 
 def create_polls(year: int, max_week: Optional[int] = None) -> Dict[str, Ranking]:
@@ -286,14 +300,15 @@ def create_polls(year: int, max_week: Optional[int] = None) -> Dict[str, Ranking
 
     for week in week_list:
 
-        week_number = week_list.index(week) + 1
+        week_number = week.week - 1
         if max_week:
             if week_number > max_week:
                 return instances
 
         for poll in week.polls:
             if poll.poll in instances:
-                ranks = [rank.school for rank in poll.ranks]
+                ranks = {rank.rank: rank.school for rank in poll.ranks}
+                ranks = [ranks[rank] for rank in sorted(ranks)]
                 instances[poll.poll].add_week(week_number, ranks)
 
     return instances

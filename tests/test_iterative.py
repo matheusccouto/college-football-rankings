@@ -10,10 +10,10 @@ class TestIterative:
     @classmethod
     def setup_class(cls):
         """ Get teams and games. """
-        year = 2019
+        year = 2020
         teams = college_football_rankings.get_teams()
         teams = college_football_rankings.create_teams_instances(teams)
-        games = college_football_rankings.get_games(year)
+        games = college_football_rankings.get_games(year, season_type="both")
         college_football_rankings.fill_schedules(games, teams)
         # Remove teams that won't play any game.
         cls.teams = {

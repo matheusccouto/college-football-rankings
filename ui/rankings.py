@@ -1,6 +1,6 @@
 """ Rankings web app section. """
 
-from typing import Dict
+from typing import Dict, List
 
 import pandas as pd
 import streamlit as st
@@ -9,7 +9,7 @@ import college_football_rankings as cfr
 import ui
 
 
-def comparison(rankings: Dict[str, str], teams: Dict[str, cfr.Team], length: int):
+def comparison(rankings: Dict[str, List[str]], teams: Dict[str, cfr.Team], length: int):
     """ Create rankings comparison table. """
 
     # Select ranks to show.
@@ -23,6 +23,10 @@ def comparison(rankings: Dict[str, str], teams: Dict[str, cfr.Team], length: int
     selected = {key: val[:length] for key, val in selected.items()}
     if not selected:
         return
+
+    selected = {
+        key: val + [None] * (length - len(val)) for key, val in selected.items()
+    }
 
     # Transform data into a dataframe and show it.
     data_frame = pd.DataFrame(selected, index=index)
