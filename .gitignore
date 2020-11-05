@@ -1,6 +1,10 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,venv,pycharm,visualstudio,django,flask
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,jupyternotebooks,venv,pycharm,visualstudio,django,flask
 
+college_football_rankings/_old__init__.py
+college_football_rankings/_old_iterative.py
+_old_app.py
+
 ### Django ###
 *.log
 *.pot
@@ -604,7 +608,7 @@ csx/
 ecf/
 rcf/
 
-# Windows Store app package directories and files
+# Windows Store ui package directories and files
 AppPackages/
 BundleArtifacts/
 Package.StoreAssociation.xml
