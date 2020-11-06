@@ -1,3 +1,5 @@
+# TODO Remove power(exponent)
+# TODO Add post win prob in schedule
 """ Web application main script. """
 
 import os
@@ -14,15 +16,7 @@ from college_football_rankings import iterative
 
 FIRST_YEAR: int = 1869
 RANKINGS_LEN = 25
-
-CUSTOM_RANKINGS: List[Dict[str, Any]] = [
-    dict(
-        name="Margin Unaware Algorithm", func=cfr.iterative.power, consider_margin=True
-    ),
-    dict(
-        name="Margin Aware Algorithm", func=cfr.iterative.power, consider_margin=False
-    ),
-]
+ALGORITHM_NAME = "Algorithm"
 
 
 @st.cache(show_spinner=False, ttl=10800)
@@ -76,16 +70,26 @@ def main():
     teams = create_teams(games=games)
     cfr.filter_schedules(teams=teams, max_week=week)
 
-    # Evaluate rankings.
-    for custom in CUSTOM_RANKINGS:
+    st.sidebar.title("Algorithm Settings")
+    margin = st.sidebar.checkbox("Consider margin")
+    post_win_prob = st.sidebar.checkbox("Consider post win probability")
+    exponent = st.sidebar.number_input("Exponent", min_value=1, value=1, step=1)
 
-        name = custom.pop("name")
-        try:
-            rankings[name] = cfr.Ranking(name=name)
-            ranks = cfr.evaluate(teams=teams, func=custom.pop("func"), **custom)
-            rankings[name].add_week(week=week, rankings=[rank.name for rank in ranks])
-        except cfr.RankingError:
-            pass
+    # Evaluate rankings.
+    try:
+        rankings[ALGORITHM_NAME] = cfr.Ranking(name=ALGORITHM_NAME)
+        ranks = cfr.evaluate(
+            teams=teams,
+            func=iterative.power,
+            consider_margin=margin,
+            consider_post_win_prob=post_win_prob,
+            exponent=exponent,
+        )
+        rankings[ALGORITHM_NAME].add_week(
+            week=week, rankings=[rank.name for rank in ranks]
+        )
+    except cfr.RankingError:
+        st.error("Could not find an equilibrium for algorithm rankings.")
 
     # Rankings.
     st.text("")

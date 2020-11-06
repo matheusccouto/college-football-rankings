@@ -295,7 +295,6 @@ def create_polls(year: int, max_week: Optional[int] = None) -> Dict[str, Ranking
     instances = {
         "Playoff Committee Rankings": Ranking(name="Playoff Committee Rankings"),
         "AP Top 25": Ranking(name="AP Top 25"),
-        "Coaches Poll": Ranking(name="Coaches Poll"),
     }
 
     for week in week_list:
