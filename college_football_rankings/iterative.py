@@ -40,6 +40,7 @@ def clip(val, min_val, max_val):
 def power(
     teams: Dict[str, cfr.Team],
     consider_margin: bool = False,
+    consider_post_win_prob: bool = False,
     random_state: Optional[int] = None,
 ):
     """ Iterative algorithm to evaluate teams power. """
@@ -76,6 +77,9 @@ def power(
 
                 if not consider_margin:
                     margin = clip(margin, -1, 1)
+
+                if consider_post_win_prob and game.team_post_win_prob is not None:
+                    margin *= game.team_post_win_prob
 
                 opponent_power = teams[game.opponent].power
 

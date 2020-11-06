@@ -27,6 +27,9 @@ def table(rankings: Dict[str, List[str]], teams: Dict[str, cfr.Team]):
     options = list(rankings.keys())
     ranking_name = st.selectbox("Select ranking", options=options)
 
+    if not ranking_name:
+        return
+
     games = team.schedule.games
     opponents = [game.opponent for game in games]
     scores = [

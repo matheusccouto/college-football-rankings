@@ -14,7 +14,9 @@ def comparison(rankings: Dict[str, List[str]], teams: Dict[str, cfr.Team], lengt
 
     # Select ranks to show.
     options = list(rankings.keys())
-    selected_names = st.multiselect("Select rankings to compare", options=options)
+    selected_names = st.multiselect(
+        "Select rankings to compare", options=options, default=options
+    )
     selected = {name: rankings[name] for name in selected_names}
 
     # Create index column
