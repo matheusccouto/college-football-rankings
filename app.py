@@ -58,22 +58,35 @@ def main():
     year = ui.year_selector(first_year=FIRST_YEAR)
 
     # Games
-    games = request_games(year=year, season_type="regular")
+    games = request_games(year=year, season_type="both")
 
     # Week
-    week = ui.week_selector(n_weeks=cfr.last_played_week(games=games))
+    n_reg_weeks = cfr.last_played_week(games=games, season_type="regular")
+    reg_weeks = [f"{i + 1}" for i in range(n_reg_weeks)]
+
+    n_post_weeks = cfr.last_played_week(games=games, season_type="postseason")
+    post_weeks = [f"Post {i + 1}" for i in range(n_post_weeks)]
+
+    options = reg_weeks + post_weeks
+    week = st.select_slider(label="Select week", options=options, value=options[-1])
+
+    if "Post" in week:
+        week = int(week.replace("Post ", ""))
+        season_type = "postseason"
+    else:
+        week = int(week)
+        season_type = "regular"
 
     # Polls
     rankings = cfr.create_polls(year=year, max_week=week)
 
     # Teams
     teams = create_teams(games=games)
-    cfr.filter_schedules(teams=teams, max_week=week)
+    cfr.filter_schedules(teams=teams, max_week=week, season_type=season_type)
 
     st.sidebar.title("Algorithm Settings")
     margin = st.sidebar.checkbox("Consider margin")
     post_win_prob = st.sidebar.checkbox("Consider post win probability")
-    exponent = st.sidebar.number_input("Exponent", min_value=1, value=1, step=1)
 
     # Evaluate rankings.
     try:
@@ -83,7 +96,6 @@ def main():
             func=iterative.power,
             consider_margin=margin,
             consider_post_win_prob=post_win_prob,
-            exponent=exponent,
         )
         rankings[ALGORITHM_NAME].add_week(
             week=week, rankings=[rank.name for rank in ranks]

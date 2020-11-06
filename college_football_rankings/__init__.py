@@ -55,10 +55,10 @@ class Schedule:
         """ Number of games this season. """
         return len(self.games)
 
-    def filter_score(self, max_week: int):
+    def filter_score(self, max_week: int, season_type: str):
         """ Clear schedule games score. """
         for game in self.games:
-            if game.week > max_week:
+            if game.week > max_week and season_type in game.season_type:
                 game.team_points = None
                 game.team_line_scores = None
                 game.team_post_win_prob = None
@@ -255,10 +255,13 @@ def fill_schedules(
         teams[game.away_team].schedule.add_game(game)
 
 
-def filter_schedules(teams: Dict[str, Team], max_week: int):
+def filter_schedules(teams: Dict[str, Team], max_week: int, season_type: str):
     """ Filter data from played games up to a specified wek.. """
     for team in teams.values():
-        team.schedule.filter_score(max_week)
+        # If regular season, wipe out all postseason games.
+        if "regular" in season_type.lower():
+            team.schedule.filter_score(0, "postseason")
+        team.schedule.filter_score(max_week, season_type)
 
 
 def clean_teams(teams: Dict[str, Team]) -> Dict[str, Team]:
@@ -266,25 +269,20 @@ def clean_teams(teams: Dict[str, Team]) -> Dict[str, Team]:
     return {name: team for name, team in teams.items() if team.schedule.n_games > 0}
 
 
-def last_played_week(games: List[cfbd.Game]) -> int:
+def last_played_week(games: List[cfbd.Game], season_type: str) -> int:
     """ Get last played week. """
-    last_regular_week = 0
-    last_off_season_week = 0
+    last_week = 0
 
     for game in games:
 
         if game.home_points is None:
             continue
 
-        if "regular" in game.season_type:
-            if game.week > last_regular_week:
-                last_regular_week = game.week
+        if season_type in game.season_type:
+            if game.week > last_week:
+                last_week = game.week
 
-        else:
-            if game.week > last_off_season_week:
-                last_off_season_week = game.week
-
-    return last_regular_week + last_off_season_week
+    return last_week
 
 
 def create_polls(year: int, max_week: Optional[int] = None) -> Dict[str, Ranking]:
