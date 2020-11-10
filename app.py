@@ -32,12 +32,9 @@ def request_teams() -> List[cfbd.Team]:
 
 
 @st.cache(show_spinner=False, ttl=10800)
-def request_rankings(year: int) -> List[cfbd.RankingWeek]:
-    """ Request rankings and keep it in cache for an hour. """
-    try:
-        return cfr.get_rankings(year=year)
-    except ValueError:
-        return []
+def create_polls(year: int, max_week: int) -> Dict[str, cfr.Ranking]:
+    """ Create polls and keep it in cache for an hour. """
+    return cfr.create_polls(year=year, max_week=max_week)
 
 
 def create_teams(games: List[cfbd.Game]) -> Dict[str, cfr.Team]:
@@ -81,7 +78,8 @@ def main():
         season_type = "regular"
 
     # Polls
-    rankings = cfr.create_polls(year=year, max_week=week)
+    cached_rankings = create_polls(year=year, max_week=week)
+    rankings = cached_rankings.copy()  # Avoid streamlit cached object mutation.
 
     # Teams
     teams = create_teams(games=games)

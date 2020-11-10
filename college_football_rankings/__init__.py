@@ -287,7 +287,10 @@ def last_played_week(games: List[cfbd.Game], season_type: str) -> int:
 
 def create_polls(year: int, max_week: Optional[int] = None) -> Dict[str, Ranking]:
     """ Create polls instances. """
-    week_list = get_rankings(year=year)
+    if year >= 1936:
+        week_list = get_rankings(year=year)
+    else:
+        week_list = []
 
     # Create instances.
     instances = {
