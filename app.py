@@ -34,7 +34,10 @@ def request_teams() -> List[cfbd.Team]:
 @st.cache(show_spinner=False, ttl=10800)
 def request_rankings(year: int) -> List[cfbd.RankingWeek]:
     """ Request rankings and keep it in cache for an hour. """
-    return cfr.get_rankings(year=year)
+    try:
+        return cfr.get_rankings(year=year)
+    except ValueError:
+        return []
 
 
 def create_teams(games: List[cfbd.Game]) -> Dict[str, cfr.Team]:
