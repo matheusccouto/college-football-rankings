@@ -1,5 +1,3 @@
-# TODO Remove power(exponent)
-# TODO Add post win prob in schedule
 """ Web application main script. """
 
 import os
