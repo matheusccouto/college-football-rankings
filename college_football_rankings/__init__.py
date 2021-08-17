@@ -6,9 +6,10 @@ import os
 from typing import Callable, Dict, List, Optional, Sequence
 
 import cfbd
+import streamlit as st
 
 CONFIG = cfbd.Configuration()
-CONFIG.api_key['Authorization'] = os.getenv("CFDB_KEY")
+CONFIG.api_key['Authorization'] = st.secrets["CFBD_KEY"]
 CONFIG.api_key_prefix['Authorization'] = 'Bearer'
 CONFIG.verify_ssl = False
 

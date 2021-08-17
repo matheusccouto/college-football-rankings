@@ -5,6 +5,8 @@ college_football_rankings/_old__init__.py
 college_football_rankings/_old_iterative.py
 _old_app.py
 
+.streamlit
+
 ### Django ###
 *.log
 *.pot

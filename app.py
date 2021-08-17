@@ -47,7 +47,7 @@ def create_teams(games: List[cfbd.Game]) -> Dict[str, cfr.Team]:
 def main():
     """ Web app main routine. """
 
-    st.beta_set_page_config(
+    st.set_page_config(
         page_title="College Football Rankings",
         page_icon=os.path.join("img", "favicon.png"),
     )
