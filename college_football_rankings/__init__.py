@@ -2,9 +2,15 @@
 Estimate college football rankings.
 """
 import dataclasses
+import os
 from typing import Callable, Dict, List, Optional, Sequence
 
 import cfbd
+
+CONFIG = cfbd.Configuration()
+CONFIG.api_key['Authorization'] = os.getenv("CFDB_KEY")
+CONFIG.api_key_prefix['Authorization'] = 'Bearer'
+CONFIG.verify_ssl = False
 
 
 @dataclasses.dataclass
@@ -129,7 +135,7 @@ class Team:
 
         if logos:
             self.logo_light = logos[0]
-            self.logo_dark = logos[1]
+            self.logo_dark = logos[-1]
         else:
             self.logo_light = None
             self.logo_dark = None
@@ -213,25 +219,19 @@ class Ranking:
 
 def get_games(*args, **kwargs) -> List[cfbd.Game]:
     """ Get games data. """
-    config = cfbd.Configuration()
-    config.verify_ssl = False
-    api = cfbd.GamesApi(cfbd.ApiClient(config))
+    api = cfbd.GamesApi(cfbd.ApiClient(CONFIG))
     return api.get_games(*args, **kwargs)
 
 
 def get_teams(**kwargs) -> List[cfbd.Team]:
     """ Get teams data. """
-    config = cfbd.Configuration()
-    config.verify_ssl = False
-    api = cfbd.TeamsApi(cfbd.ApiClient(config))
+    api = cfbd.TeamsApi(cfbd.ApiClient(CONFIG))
     return api.get_teams(**kwargs)
 
 
 def get_rankings(*args, **kwargs) -> List[cfbd.RankingWeek]:
     """ Get rankings data. """
-    config = cfbd.Configuration()
-    config.verify_ssl = False
-    api = cfbd.RankingsApi(cfbd.ApiClient(config))
+    api = cfbd.RankingsApi(cfbd.ApiClient(CONFIG))
     return api.get_rankings(*args, **kwargs)
 
 
@@ -306,10 +306,10 @@ def create_polls(year: int, max_week: Optional[int] = None) -> Dict[str, Ranking
                 return instances
 
         for poll in week.polls:
-            if poll.poll in instances:
-                ranks = {rank.rank: rank.school for rank in poll.ranks}
+            if poll["poll"] in instances:
+                ranks = {rank["rank"]: rank["school"] for rank in poll["ranks"]}
                 ranks = [ranks[rank] for rank in sorted(ranks)]
-                instances[poll.poll].add_week(week_number, ranks)
+                instances[poll["poll"]].add_week(week_number, ranks)
 
     return instances
 

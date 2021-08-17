@@ -8,10 +8,9 @@ import streamlit as st
 import college_football_rankings as cfr
 
 
-def year_selector(first_year: int):
+def year_selector(first_year: int, last_year: int):
     """ Year selector widget. """
-    this_year = datetime.date.today().year
-    return st.selectbox("Select year", options=range(this_year, first_year - 1, -1))
+    return st.selectbox("Select year", options=range(last_year, first_year - 1, -1))
 
 
 def week_selector(n_weeks: int):

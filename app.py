@@ -13,23 +13,24 @@ import ui.schedule
 from college_football_rankings import iterative
 
 FIRST_YEAR: int = 1869
+LAST_YEAR: int = 2020
 RANKINGS_LEN = 25
 ALGORITHM_NAME = "Algorithm"
 
 
-@st.cache(show_spinner=False, ttl=10800)
+# @st.cache(show_spinner=False, ttl=10800)
 def request_games(year: int, season_type: str) -> List[cfbd.Game]:
     """ Request games and keep it in cache for an hour. """
     return cfr.get_games(year=year, season_type=season_type)
 
 
-@st.cache(show_spinner=False)
+# @st.cache(show_spinner=False, ttl=10800)
 def request_teams() -> List[cfbd.Team]:
     """ Request teams and keep it in cache. """
     return cfr.get_teams()
 
 
-@st.cache(show_spinner=False, ttl=10800)
+# @st.cache(show_spinner=False, ttl=10800)
 def create_polls(year: int, max_week: int) -> Dict[str, cfr.Ranking]:
     """ Create polls and keep it in cache for an hour. """
     return cfr.create_polls(year=year, max_week=max_week)
@@ -53,7 +54,7 @@ def main():
     st.title(":football: College Football Rankings")
 
     # Year
-    year = ui.year_selector(first_year=FIRST_YEAR)
+    year = ui.year_selector(first_year=FIRST_YEAR, last_year=LAST_YEAR)
 
     # Games
     games = request_games(year=year, season_type="both")
