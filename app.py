@@ -13,7 +13,7 @@ import ui.schedule
 from college_football_rankings import iterative
 
 FIRST_YEAR: int = 1869
-LAST_YEAR: int = 2020
+LAST_YEAR: int = 2021
 RANKINGS_LEN = 25
 ALGORITHM_NAME = "Algorithm"
 
